@@ -1,0 +1,108 @@
+---
+title: "Regression Models Course Project"
+author: "Chiu Wei Chieh"
+output: pdf_document
+---
+```{r echo = F, warning=F, error=F, message=F}
+require(knitr); require(ggplot2); require("GGally")
+opts_chunk$set(warning=F, error=F, message=F, fig.width = 10, fig.height = 4, results='asis', cache = F, tidy = F)
+```
+
+> ### Question 1 : Is an automatic or manual transmission better for MPG?
+> ### Question 2 : Quantify the MPG difference between automatic and manual transmissions.
+
+My strategy :  
+1. Explore the relationship between mpg and other variables.  
+2. Fit multiple models and diagnose with redidual plots and nested model testing.   
+3. Select a suitable model and answer the questions.  
+
+### 1. Exploratory
+
+```{r results='hide'}
+library(datasets); data(mtcars)
+fitAll <- lm(mpg ~ ., data = mtcars)
+summary(fitAll)$coef
+```
+From the summary of all variables, we have the estimate beta value(absolute value) in decreasing order :  
+wt > am > qsec > drat > gear > vs > carb > cyl > hp > disp  
+
+Figure 1 & 2 : Manual transmission seems have better MPG.   
+Figure 3 : wt and mpg is negative correlation. Automatic transmission cars is heavier.  
+Figure 4 : qsec and mpg is positive correlation.  
+
+### 2. Fit models and diagnose
+
+**Nested model testing 1:  **
+```{r echo=FALSE, results='markup'}
+fitAm <- lm(mpg ~ factor(am), data = mtcars)
+fit1 <- update(fitAm, mpg ~ factor(am) + wt)
+fit2 <- update(fitAm, mpg ~ factor(am) + wt + qsec)
+fit3 <- update(fitAm, mpg ~ factor(am) + wt + qsec + drat)
+fit4 <- update(fitAm, mpg ~ factor(am) + wt + qsec + drat + gear + vs + carb + cyl + hp + disp)
+anova(fitAm, fit1, fit2, fit3, fit4)
+```
+**Diagnose 1**: In the mpg ~ am + wt model, am seems have no significant effect on mpg(Figure 5). But mpg ~ am + qsec model shows am has significant effect on mpg(Figure 6). And considering the result of the first nested model testing, our model should include am, wt and qsec.  
+
+**Nested model testing 2(am, wt, qsec and their interactions) : **
+```{r echo=FALSE, results='markup'}
+fit5 <- update(fitAm, mpg ~ factor(am) + wt + factor(am)*wt)
+fit6 <- update(fitAm, mpg ~ factor(am) + wt + factor(am)*wt + qsec)
+fit7 <- update(fitAm, mpg ~ factor(am) + wt + factor(am)*wt + qsec + factor(am)*qsec)
+fit8 <- update(fitAm, mpg ~ factor(am) + wt + factor(am)*wt + qsec + factor(am)*qsec + wt*qsec)
+anova(fitAm, fit1, fit5, fit6, fit7, fit8)
+```    
+**Diagnose 2**: Compare model with and without am*wt term. The result shows that it has great effect on model. So we want to include this term. 
+```{r echo=FALSE, results='markup'}
+data.frame(withAmWt = round(summary(fit2)$coef[2,1], 3), withoutAmWt = round(summary(fit6)$coef[2,1], 3))
+```
+**Diagnose 3**: Both am\*qsec and wt\*qsec has no significant effect on model.
+
+### 3. Model of choice
+fit6 <- lm(mpg ~ factor(am) + wt+ qsec + factor(am)*wt, data = mtcars)
+```{r results='markup'}
+summary(fit6)$coef
+```
+
+> ### Answer 1 : According to our model, manual transmission is better for MPG than automatic transmission.  
+> ### Answer 2 : Holding other variables in constant, the mpg difference between manual and automatic transmission is 14.079 miles/gallon with standard error 3.435.
+    
+### Appendix
+
+**Figure 1**
+```{r}
+g <- ggplot(data = mtcars, aes(y = mpg, x = factor(am)))
+g <- g + geom_violin(aes(fill = factor(am)))
+g
+```
+**Figure 2**
+```{r}
+g <- ggplot(data = mtcars, aes(y = mpg, x = factor(am)))
+g <- g + geom_point(aes(fill = wt)) + geom_smooth(method = lm)
+g
+```
+**Figure 3**
+```{r}
+g <- ggplot(data = mtcars, aes(y = mpg, x = wt))
+g <- g + geom_point(aes(colour = factor(am))) + geom_smooth(method = lm)
+g
+```
+**Figure 4**
+```{r}
+g <- ggplot(data = mtcars, aes(y = mpg, x = qsec))
+g <- g + geom_point(aes(colour = factor(am))) + geom_smooth(method = lm)
+g
+```
+**Figure 5**
+```{r}
+dataResid <- data.frame(y = resid(lm(mpg ~ wt, data=mtcars)), x = resid(lm(am ~ wt, data=mtcars)))
+g <- ggplot(data = dataResid, aes(y = y, x = x))
+g <- g + geom_point() + geom_smooth(method = lm)
+g
+```
+**Figure 6**
+```{r}
+dataResid <- data.frame(y = resid(lm(mpg ~ qsec, data=mtcars)), x = resid(lm(am ~ qsec, data=mtcars)))
+g <- ggplot(data = dataResid, aes(y = y, x = x))
+g <- g + geom_point() + geom_smooth(method = lm)
+g
+```
